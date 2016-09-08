@@ -1,0 +1,29 @@
+# vim: ft=dosini
+[DEFAULT]
+action =
+inpfile_ext = dat
+outfile_ext = out
+
+[create]
+options =
+templates = /path/to/input/file/template1,
+            /path/to/input/file/template2
+potdir = /path/to/potfiles/dir
+ngwf_radius = 10.0
+
+[run]
+options =
+paths = /path/to/onetep/executable1,
+        /path/to/onetep/executable2
+
+[watch]
+options =
+email =
+interval = 3600
+
+[summarise]
+options =
+
+[geomconv]
+
+[enerconv]

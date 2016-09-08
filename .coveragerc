@@ -1,0 +1,10 @@
+# vim: ft=dosini
+[run]
+branch = False
+source = teptools
+omit = teptools/update*
+
+[report]
+fail_under = 95
+show_missing = True
+skip_covered = True

@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+import os
+import argparse
+import helpers
+
+
+def parser(args):
+    """Return parsed command line arguments."""
+    parser = argparse.ArgumentParser(
+        description=(
+            'Extracts the final converged energy from an output file.\n'
+            'This is especially useful for getting all the energies from\n'
+            'convergence tests.'),
+        formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument(
+        'outfiles', metavar='outfile', type=str, nargs='*',
+        help='ONETEP output files to obtain converged energies\n'
+             'If none is specified then all out files (*.out)\n'
+             'in the current directory will be read')
+
+    return parser.parse_args(args)
+
+
+def main(args=None, rcfile=None):
+    default_config = {
+        'outfile_ext': 'out'
+    }
+    config = helpers.parse_rcfile(rcfile, 'enerconv', default_config)
+    args = parser(args)
+    outfiles = helpers.outfiles(args.outfiles, config['outfile_ext'])
+
+    for file in outfiles:
+        fullpath = os.path.dirname(os.path.join(os.getcwd(), file))
+        dirname = os.path.basename(fullpath)
+        job_completed = False
+
+        with open(file, 'r') as f:
+            lines = reversed(f.readlines())
+
+        for line in lines:
+            if 'Job completed:' in line:
+                job_completed = True
+
+            if job_completed and '<-- CG' in line:
+                print(dirname + ' ' + line.split()[2])
+                break
+
+        if not job_completed:
+            print(file + ' <-- not finished')
+
+if __name__ == '__main__':  # pragma: no cover
+    main()

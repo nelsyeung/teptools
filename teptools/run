@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+import sys
+import os
+import argparse
+import glob
+import subprocess
+import helpers
+
+
+def parser(default_args, args):
+    """Return parsed command line arguments."""
+    parser = argparse.ArgumentParser(
+        description=(
+            'Run ONETEP from the configured path. This module includes\n'
+            'automatic reading of input file and can redirect output to a\n'
+            'file with an appropriate name. It can also help with running\n'
+            'different versions of ONETEP easily, if they are set up in\n'
+            'your configuration file.'),
+        formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument(
+        'inpfile', type=str, nargs='*',
+        help='ONETEP input file to be read\n'
+             'If none is specified then the first input file (*.dat)\n'
+             'in the current directory will be read')
+
+    parser.add_argument(
+        '-o', '--output', action='store_true',
+        help='Write the output into a new file')
+
+    parser.add_argument(
+        '--no-output', action='store_false', dest='output',
+        help='Prevent writing the output into a new file')
+
+    parser.add_argument(
+        '-a', '--args', type=str, nargs='+',
+        help='A dash argument to be passed to ONETEP (e.g., --help all).\n'
+        'Whatever the first word is will be prefixed by either\n'
+        'a single dash, for a single letter, or a double dash, otherwise.\n'
+        'Example: "tep run -a h all" will turn into "onetep -h all"')
+
+    parser.add_argument(
+        '-v', '--version', type=int, default=1,
+        help='The version of ONETEP you want to execute.\n'
+             'This is not the version number of ONETEP but the index of the\n'
+             'paths within your configuration file. The index starts from 1,\n'
+             'so if you would like to run the first path set, use "-v 1".\n'
+             '(default: 1)')
+
+    if args is None:  # pragma: no cover
+        if default_args == ['']:
+            default_args = []
+
+        args = default_args
+        args.extend(sys.argv[1:])
+
+    return parser.parse_args(args)
+
+
+def main(args=None, rcfile=None):
+    default_config = {
+        'options': [],
+        'inpfile_ext': 'dat',
+        'outfile_ext': 'out',
+        'paths': []
+    }
+    config = helpers.parse_rcfile(rcfile, 'run', default_config)
+    args = parser(config['options'], args)
+
+    if not config['paths']:
+        sys.exit('ONETEP path not set')
+
+    onetep = os.path.expandvars(config['paths'][args.version-1])
+    cmd = 'ulimit -s unlimited; ' + onetep + ' '
+    onetep_args = ''
+
+    if not os.path.exists(onetep):
+        sys.exit(onetep + ' does not exists')
+
+    # User should only be able to either pass in dash arguments (e.g., --help)
+    # into ONETEP or supply an input file directly, but not both.
+    if args.args:  # pragma:  no cover
+        for i in range(len(args.args)):
+            if i == 0:
+                # Since dash is reserved for argparse it's not possible to use
+                # dash arguments as positional arguments, so whatever the first
+                # word is will be prefixed by either a single dash, for a
+                # single letter, or a double dash, otherwise.
+                if len(args.args[i]) > 1:
+                    onetep_args += '--' + args.args[i]
+                else:
+                    onetep_args += '-' + args.args[i]
+            else:
+                onetep_args += ' ' + args.args[i]
+
+        cmd += onetep_args
+    else:
+        inpfile = args.inpfile
+
+        if not inpfile:
+            inpfile = glob.glob('*.' + config['inpfile_ext'])
+
+        if inpfile:
+            inpfile = inpfile[0]
+        else:
+            sys.exit('No ONETEP input file found or supplied')
+
+        cmd += inpfile
+
+    if args.output:
+        filename = os.path.splitext(os.path.basename(inpfile))[0]
+        outfile, _ = helpers.create_file(filename, 'out')
+        cmd += ' > ' + outfile
+
+    subprocess.call(cmd, shell=True)
+
+if __name__ == '__main__':  # pragma: no cover
+    main()

@@ -1,0 +1,30 @@
+task                : singlepoint
+output_detail       : verbose
+do_properties       : T
+cutoff_energy       : 1200 eV
+fine_grid_scale     : 2
+num_eigenvalues     : 100
+spin_polarized      : F
+dos_smear           : 0.1 eV
+xc_functional       : PBE
+paw                 : T
+write_forces        : T
+edft_init_maxit     : 8
+elec_energy_tol     : 0.00002 hartree
+ngwf_threshold_orig : 0.0000008
+ngwf_cg_max_step    : 8.0
+
+%block lattice_cart
+%endblock lattice_cart
+
+%block species
+%endblock species
+
+%block species_pot
+%endblock species_pot
+
+%block species_ldos_groups
+%endblock species_ldos_groups
+
+%block positions_abs
+%endblock positions_abs
