@@ -1,0 +1,41 @@
+task                : singlepoint
+output_detail       : verbose
+do_properties       : T
+fine_grid_scale     : 2
+num_eigenvalues     : 100
+spin_polarized      : F
+dos_smear           : 0.1 eV
+xc_functional       : PBE
+paw                 : T
+write_forces        : T
+edft_init_maxit     : 8
+elec_energy_tol     : 0.00002 hartree
+ngwf_threshold_orig : 0.0000008
+ngwf_cg_max_step    : 8.0
+
+%block lattice_cart
+ang    # angstrom units
+  91.119728884583495   0.000000000000023   0.000000000000000
+   0.000000000000000  16.439999999999998   0.000000000000000
+   0.000000000000000   0.000000000000000  12.900000000000000
+%endblock lattice_cart
+
+%block species
+W   W    74 -1 10.0
+S   S    16 -1 10.0
+%endblock species
+
+%block species_pot
+W   "pot/w1.pot"
+S   "pot/S2.pot"
+%endblock species_pot
+
+%block species_ldos_groups
+%endblock species_ldos_groups
+
+%block positions_abs
+ang    # angstrom units
+Mo   0.949163842547745   1.644000000000001   3.225000000000000
+S    1.898327685095489   0.000000000000000   1.586700000000000
+Se  64.543141293246649   6.576000000000014   1.612500000000000
+%endblock positions_abs

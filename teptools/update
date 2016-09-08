@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+from distutils.version import StrictVersion
+import os
+import shutil
+import argparse
+import urllib.request
+import subprocess
+
+
+def parser(args):
+    """Return parsed command line arguments."""
+    parser = argparse.ArgumentParser(
+        description=('Update teptools if necessary.'),
+        formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument(
+        '-f', '--force', action='store_true',
+        help='Ignore version checking and update from GitHub directly.')
+
+    return parser.parse_args(args)
+
+
+def main(args=None, rcfile=None):
+    args = parser(args)
+    url = ('https://raw.githubusercontent.com/'
+           'nelsyeung/teptools/master/teptools/.__version__')
+    repository = 'https://github.com/nelsyeung/teptools.git'
+    teptools_dir = os.path.dirname(os.path.realpath(__file__))
+    prefix = os.path.dirname(teptools_dir)
+
+    os.chdir(teptools_dir)
+
+    if not args.force:
+        with open('.__version__', 'r') as f:
+            current_version = f.readline().strip()
+            print('Version: ' + current_version)
+
+        with urllib.request.urlopen(url) as res:
+            latest_version = res.read().decode('utf-8').strip()
+            print('Latest version: ' + latest_version)
+
+        if StrictVersion(current_version) == StrictVersion(latest_version):
+            print('No update required.')
+            return
+
+        subprocess.call(['git', 'clone', repository])
+    else:
+        subprocess.call(['git', 'clone', repository])
+
+    os.chdir('teptools')
+    subprocess.call(['./install.py', '--prefix', prefix])
+    os.chdir('..')
+    shutil.rmtree('teptools')
+
+if __name__ == '__main__':
+    main()

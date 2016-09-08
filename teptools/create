@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+import sys
+import os
+import argparse
+import math
+import helpers
+
+
+def get_cell_blocks(file):
+    """Return contents of all the blocks."""
+    blocks = {}
+
+    with open(file, 'r') as f:
+        block = ''
+
+        for l in f:
+            l_lower = l.lower()
+
+            if l_lower.startswith('%block'):
+                block = l_lower.split()[-1].strip()
+
+                if block not in blocks:
+                    blocks[block] = []
+
+                continue
+            elif l_lower.startswith('%endblock'):
+                block = ''
+                continue
+
+            if block:
+                blocks[block].append(l)
+
+    return blocks
+
+
+def get_atomic_number(element):
+    all_elements = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na',
+                    'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca', 'Sc',
+                    'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga',
+                    'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 'Sr', 'Y', 'Zr', 'Nb',
+                    'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd', 'In', 'Sn', 'Sb',
+                    'Te', 'I', 'Xe', 'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Pm',
+                    'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu',
+                    'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg', 'Tl',
+                    'Pb', 'Bi', 'Po', 'At', 'Rn', 'Fr', 'Ra', 'Ac', 'Th', 'Pa',
+                    'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md',
+                    'No', 'Lr', 'Rf', 'Db', 'Sg', 'Bh', 'Hs', 'Mt', 'Ds', 'Rg',
+                    'Uub', 'Uut', 'Uuq', 'Uup', 'Uuh', 'Uus']
+    return all_elements.index(element) + 1
+
+
+def create_inpfile(template, inpfile, elements, ngwf_radius, potdir,
+                   cell_blocks, conv_test=''):
+    """Create input file from template."""
+    block = ''
+
+    if os.path.isfile(inpfile):
+        sys.exit(inpfile + ' already exists. Program exiting...')
+
+    f = open(inpfile, 'a')
+
+    with open(os.path.expandvars(template), 'r') as template_file:
+        for l in template_file:
+            l_lower = l.strip().lower()
+
+            if conv_test == 'cutoff' and 'cutoff_energy' in l_lower:
+                continue
+
+            if l_lower.startswith('%block'):
+                block = l_lower.split()[-1]
+
+            # Don't print species block for NGWF radius convergence test.
+            if conv_test == 'radius' and block == 'species':
+                continue
+
+            if l_lower.startswith('%endblock'):
+                block = ''
+
+            f.write(l)
+
+            if conv_test != 'radius' and block == 'species':
+                for e in elements:
+                    f.write('{:<3} {:<3} {:3d} -1 {:.1f}\n'.format(
+                        e, e, get_atomic_number(e), ngwf_radius))
+
+                continue
+
+            if block == 'species_pot':
+                for e in elements:
+                    potfiles = []
+                    potfile = ''
+
+                    # Perform a case insensitive search on the potdir for
+                    # possible potfiles
+                    for potfile in os.listdir(potdir):
+                        if potfile.lower().startswith(e.lower()):
+                            potfiles.append(potfile)
+
+                    potfiles_len = len(potfiles)
+
+                    if potfiles_len > 1:
+                        print('Please choose a pot file for ' + e + ':')
+
+                        for i in range(potfiles_len):
+                            print('{:d}) {}'.format(i+1, potfiles[i]))
+
+                        choice = input('Enter your choice (default: 1): ')
+
+                        if not choice:
+                            choice = '1'
+
+                        potfile = potfiles[int(choice) - 1]
+                    else:
+                        potfile = potfiles[0]
+
+                    f.write('{:<3} "{}"\n'.format(
+                        e, os.path.join(potdir, potfile)))
+
+            if (cell_blocks and
+                    (block == 'lattice_cart' or block == 'positions_abs')):
+                for block_line in cell_blocks[block]:
+                    f.write(block_line)
+
+        f.close()
+
+
+def parser(default_args, args):
+    """Return parsed command line arguments."""
+    parser = argparse.ArgumentParser(
+        description=(
+            'Create a ONETEP input file from a template with the correct\n'
+            'potential files. It can also generate convergence tests.\n'),
+        formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument(
+        'name', type=str, nargs=1,
+        help='Name of the input file to be created')
+
+    parser.add_argument(
+        '-t', '--template', metavar='index', type=int, default=1,
+        help='Template index from your config file templates (default: 1)')
+
+    parser.add_argument(
+        '-e', '--elements', metavar='element', type=str, nargs='+',
+        help='All the elements in the system')
+
+    parser.add_argument(
+        '-c', '--cell', type=str,
+        help='Cell file for automatically inputting the lattice_cart block\n'
+             'and the positions_abs block')
+
+    parser.add_argument(
+        '--conv-tests', type=str, choices=['cutoff', 'radius'], nargs='+',
+        default=[],
+        help='Generate energy cutoff and NGWF radius convergence tests')
+
+    if args is None:  # pragma: no cover
+        if default_args == ['']:
+            default_args = []
+
+        args = default_args
+        args.extend(sys.argv[1:])
+
+    return parser.parse_args(args)
+
+
+def main(args=None, rcfile=None):
+    default_config = {
+        'options': [],
+        'inpfile_ext': 'dat',
+        'templates': [],
+        'potdir': '',
+        'ngwf_radius': '10.0'
+    }
+    config = helpers.parse_rcfile(rcfile, 'create', default_config)
+    args = parser(config['options'], args)
+
+    inpfile = args.name[0] + '.' + config['inpfile_ext']
+
+    if args.cell:
+        cell_blocks = get_cell_blocks(args.cell)
+    else:
+        cell_blocks = {}
+
+    config['potdir'] = os.path.expandvars(config['potdir'])
+
+    for test in args.conv_tests:
+        if test == 'cutoff':
+            print('Provide information for cutoff energy convergence (eV)')
+        elif test == 'radius':
+            print('Provide information for NGWF radius convergence (Bohr)')
+
+        starts_from = float(input('Starts from: '))
+        to = float(input('To: '))
+        interval = float(input('Interval: '))
+        isint = False
+
+        os.mkdir(test)
+        create_inpfile(config['templates'][args.template-1],
+                       os.path.join(test, inpfile),
+                       args.elements, float(config['ngwf_radius']),
+                       config['potdir'], cell_blocks, test)
+
+        if (math.floor(starts_from) == starts_from and
+                math.floor(interval) == interval):
+            isint = True
+            starts_from = int(starts_from)
+            to = int(to)
+            interval = int(interval)
+
+        for i in range(int((to - starts_from) / interval) + 1):
+            test_var = starts_from + i * interval
+
+            if isint:
+                dirname = str(test_var)
+            else:
+                dirname = '{:.1f}'.format(test_var)
+
+            os.mkdir(os.path.join(test, dirname))
+
+            with open(os.path.join(test, dirname, inpfile), 'a') as f:
+                f.write('includefile: ../' + inpfile + '\n\n')
+
+                if test == 'cutoff':
+                    f.write('cutoff_energy: ' + dirname + ' eV')
+                elif test == 'radius':
+                    f.write('%block species\n')
+
+                    for e in args.elements:
+                        f.write('{:<3} {:<3} {:3d} -1 {}\n'.format(
+                            e, e, get_atomic_number(e), dirname))
+
+                    f.write('%endblock species')
+
+    if not args.conv_tests:
+        create_inpfile(config['templates'][args.template-1], inpfile,
+                       args.elements,
+                       float(config['ngwf_radius']), config['potdir'],
+                       cell_blocks, '')
+
+if __name__ == '__main__':  # pragma: no cover
+    main()

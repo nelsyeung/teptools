@@ -1,0 +1,21 @@
+# vim: ft=dosini
+[DEFAULT]
+default_action = run
+outfile_ext = tep
+options = --no-output
+empty_setting = empty
+
+[summarise]
+options = --vimdiff, -wo
+outfile_ext = ext
+
+[geomconv]
+outfile_ext = ext
+
+[run]
+paths = tests/fixtures/not_exists,
+        tests/fixtures/onetep
+
+[create]
+templates = create.dat
+potdir = pot

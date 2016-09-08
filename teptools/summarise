@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+import sys
+import os
+import argparse
+import subprocess
+import textwrap
+import helpers
+
+
+class Summarise():
+    def __init__(self, file, term_cols):
+        self.term_cols = term_cols
+        self.cols_width = [21, 22, 11, 15, 22]
+        self.in_lnv = False
+        self.lnv_iteration = 0
+        self.iteration = 0
+        self.rms_gradient = 0.0
+        self.energy = 0.0
+        self.old_energy = 0.0
+        self.step_size = 0.0
+        self.commutator = 0.0
+        self.message = ''
+        self.time_taken = ''
+        self.num_processor = 0
+        self.iteration_header, self.iteration_info = self.unformatted_str()
+        self.summary = []
+
+        with open(file, 'r') as f:
+            self.file_lines = f.readlines()
+
+    def unformatted_str(self):
+        """Return summary info string for .format function."""
+        header = ''
+        info = ''
+        num_decimals = [14, 14, 6, 11, 14]
+
+        while self.term_cols < sum(self.cols_width) + 5:
+            self.cols_width = [x-1 for x in self.cols_width]
+            num_decimals = [x-1 for x in num_decimals]
+
+        for i in range(len(self.cols_width)):
+            header += '|{:^' + str(self.cols_width[i] - 1) + '}'
+            info += ('{:' + str(self.cols_width[i]) +
+                     '.' + str(num_decimals[i]) + 'f}')
+
+        header = '| i' + header + '|'
+        info = '{:3d}' + info + '{}'
+
+        return header, info
+
+    def parse_line(self, line):
+        """Parse the contents of the file line currently on."""
+        linesplit = line.split()
+
+        if 'TOTAL TIME' in line:
+            self.time_taken = linesplit[2]
+            self.num_processor = linesplit[4]
+        elif 'RMS gradient' in line and 'NGWF' not in line:
+            self.rms_gradient = float(linesplit[-1])
+        elif 'step 0' in line:
+            self.old_energy = self.energy
+            self.energy = float(linesplit[5])
+        elif ('Selected quadratic step' in line or
+                'Selected cubic step' in line):
+            self.step_size = float(linesplit[4])
+        elif ('Starting BFGS iteration' in line or
+                'improving iteration' in line):
+            self.energy = 0.0
+            self.old_energy = 1
+        elif 'RMS NGWF gradient =' in line:
+            self.rms_gradient = float(linesplit[5])
+        elif 'BFGS: starting iteration' in line:
+            self.iteration = 0
+        elif '|  commutator' in line:
+            self.in_lnv = True
+            self.lnv_iteration = 1
+        elif (line and self.in_lnv and
+                str(self.lnv_iteration) == linesplit[0]):
+            try:
+                self.commutator = float(linesplit[3])
+            except ValueError:
+                pass
+
+            self.lnv_iteration += 1
+        elif 'Finished density kernel iterations' in line:
+            self.in_lnv = False
+        elif 'WARNING: maximum number of NGWF CG iterations' in line:
+            self.message = ' <-- MAXIT_NGWF_CG EXCEEDED'
+        elif 'NGWF optimisation converged' in line:
+            self.message = ' <-- CG CONVERGED'
+        elif 'NGWF CG iteration  001' in line:
+            return self.iteration_header.format(
+                'RMS Gradient', 'Total Energy', 'Step', 'Commutator',
+                'Change')
+        elif ('Job started' in line or
+                'Moving atom' in line or
+                'WARNING: slope along search direction' in line):
+            return line
+        elif 'NGWF line search finished' in line:
+            self.iteration += 1
+
+            return self.iteration_info.format(
+                    self.iteration, self.rms_gradient,
+                    self.energy, self.step_size, self.commutator,
+                    self.energy - self.old_energy, '')
+        elif '-- CG' in line:
+            iteration = self.iteration + 1
+            self.iteration = 0
+            self.old_energy = self.energy
+            self.energy = float(linesplit[2])
+
+            return self.iteration_info.format(
+                    iteration, self.rms_gradient, self.energy,
+                    0, self.commutator,
+                    self.energy - self.old_energy, self.message)
+        elif 'Job completed' in line:
+            return '{} in {} on {} processors'.format(
+                    line, self.time_taken, self.num_processor)
+
+        if ('BFGS' in line and
+                'BFGS: line :' not in line and
+                'BFGS: trial:' not in line and
+                'BFGS: quad :' not in line):
+            return line
+
+        return ''
+
+    def run(self, line_print):
+        """Parse the whole file and store the summary."""
+        for line in self.file_lines:
+            result = self.parse_line(line.strip())
+
+            if result:
+                self.summary.append(result)
+
+                if line_print:
+                    print(result)
+
+
+def parser(default_args, args):
+    """Return parsed command line arguments."""
+    parser = argparse.ArgumentParser(
+        description=(
+            'Extracts the results of the NGWF CG optimisation steps from an\n'
+            'output file (which may still be running) and output them in a\n'
+            'format as if you were running with output_detail=BRIEF or\n'
+            'looking at the calculation summary.'),
+        formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument(
+        'outfiles', metavar='outfile', type=str, nargs='*',
+        help='ONETEP output files to be summarised\n'
+             'If none is specified then all out files (*.out)\n'
+             'in the current directory will be read')
+
+    parser.add_argument(
+        '-vd', '--vimdiff', action='store_true',
+        help='Open multiple outputs in vimdiff')
+
+    parser.add_argument(
+        '--no-vimdiff', action='store_false', dest='vimdiff',
+        help='Prevent opening multiple outputs in vimdiff')
+
+    parser.add_argument(
+        '-o', '--output', action='store_true',
+        help='Write each output into its own file')
+
+    parser.add_argument(
+        '--no-output', action='store_false', dest='output',
+        help='Prevent writing each output into its own file')
+
+    if args is None:  # pragma: no cover
+        if default_args == ['']:
+            default_args = []
+
+        args = default_args
+        args.extend(sys.argv[1:])
+
+    return parser.parse_args(args)
+
+
+def print_side_view(summaries, col_width):
+    """Print two summaries side-by-side."""
+    wrapper = textwrap.TextWrapper(width=col_width)
+    indices = [0, 0]
+    locks = [False, False]
+    unlocks = [False, False]
+    sync_lines = ['| i|']
+    completed = False
+
+    while indices[0] < len(summaries[0]) or indices[1] < len(summaries[1]):
+        outputs = ['--', '--']  # Dashes for empty lines to avoid confusions
+
+        if completed:
+            unlocks = [True, True]
+
+        for j in range(2):
+            if (unlocks[j] or not locks[j]) and indices[j] < len(summaries[j]):
+                if (not unlocks[j] and
+                        any(line in summaries[j][indices[j]]
+                            for line in sync_lines)):
+                    locks[j] = True
+                else:
+                    wrapped = wrapper.wrap(summaries[j][indices[j]])
+                    outputs[j] = wrapped[0]
+                    locks[j] = False
+                    unlocks[j] = False
+                    indices[j] += 1
+
+                    if len(wrapped) > 1:
+                        summaries[j].insert(indices[j], wrapped[1])
+
+            if indices[j] == len(summaries[j]):
+                completed = True
+
+        if locks[0] and locks[1]:
+            unlocks = [True, True]
+
+        if not locks[0] or not locks[1]:
+            print(('{:<' + str(col_width) + '}' +
+                   '{:' + str(col_width) + '}').format(
+                    outputs[0], outputs[1]))
+
+
+def main(args=None, rcfile=None):
+    default_config = {
+        'options': [],
+        'outfile_ext': 'out'
+    }
+    config = helpers.parse_rcfile(rcfile, 'summarise', default_config)
+    args = parser(config['options'], args)
+
+    try:
+        term_cols = int(subprocess.check_output(['stty', 'size']).split()[1])
+    except subprocess.CalledProcessError:
+        term_cols = 180  # Minimum size required for proper display
+
+    outfiles = helpers.outfiles(args.outfiles, config['outfile_ext'])
+
+    # Always disable vimdiff mode if only one output file is specified
+    if len(outfiles) == 1:
+        args.vimdiff = False
+
+    iswrite = args.output or args.vimdiff
+    newfiles = []  # files created by write output mode
+    summaries = []  # Only used for side-by-side view
+    side_view = not iswrite and len(outfiles) == 2 and term_cols >= 180
+    term_cols = int(term_cols / 2) if side_view else term_cols
+    line_print = not iswrite and not side_view
+
+    for file in outfiles:
+        summarise = Summarise(file, term_cols)
+        summarise.run(line_print)
+
+        if iswrite:
+            filename = os.path.splitext(os.path.basename(file))[0]
+            newfile, summary_file = helpers.create_file(filename, 'summary')
+            newfiles.append(newfile)
+
+        if side_view:
+            summaries.append(summarise.summary)
+
+        for line in summarise.summary:
+            if iswrite:
+                summary_file.write(line + '\n')
+
+        if iswrite:
+            summary_file.close()
+
+            if not args.vimdiff:
+                print(file + ' summary > ' + newfile)
+
+    if side_view:
+        print_side_view(summaries, term_cols)
+
+    if args.vimdiff:
+        subprocess.call('vimdiff ' + ' '.join(newfiles), shell=True)
+
+    if not args.output and args.vimdiff:
+        for newfile in newfiles:
+            os.remove(newfile)
+
+if __name__ == '__main__':  # pragma: no cover
+    main()

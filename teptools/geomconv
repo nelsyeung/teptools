@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+import imp
+import os
+import argparse
+import subprocess
+import re
+import helpers
+
+summarise = imp.load_source('', os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), 'summarise'))
+
+
+class Geomconv():
+    def __init__(self, summary):
+        self.summary = summary
+        self.outputs = []
+        self.N = 0
+        self.E = 0.0
+        self.E_old = 0.0
+        self.E_color = ''
+        self.dE = 0.0
+        self.dE_total = 0.0
+        self.dE_color = ''
+        self.F = 0.0
+        self.F_total = 0.0
+        self.F_color = ''
+        self.Smax = 0.0
+        self.Smax_total = 0.0
+        self.dR = 0.0
+        self.dR_total = 0.0
+        self.in_bfgs = False
+
+    def parse_line(self, line):
+        """Parse the contents of the summary line currently on."""
+        linesplit = line.split()
+
+        if 'enthalpy=' in line:
+            if self.E == 0:
+                self.E_old = float(linesplit[6])
+
+            self.E = float(linesplit[6])
+            self.E_color = '\033[0m'
+        elif 'dE/ion' in line:
+            self.in_bfgs = True
+            self.dE = float(linesplit[3])
+            self.dE_total = float(linesplit[5])
+        elif 'F|' in line:
+            self.in_bfgs = True
+            self.F = float(linesplit[3])
+            self.F_total = float(linesplit[5])
+        elif 'Smax' in line:
+            self.in_bfgs = True
+            self.Smax = float(linesplit[3])
+            self.Smax_total = float(linesplit[5])
+        elif 'dR' in line:
+            self.in_bfgs = True
+            self.dR = float(linesplit[3])
+            self.dR_total = float(linesplit[5])
+
+        if self.in_bfgs and '- BFGS' not in line:
+            self.in_bfgs = False
+            self.N += 1
+
+            if self.dE == 0:
+                self.dE_color = '\033[0m'
+            else:
+                if self.dE < self.dE_total:
+                    self.dE_color = '\033[2;32m'
+                else:
+                    self.dE_color = '\033[0;31m'
+
+            if self.F < self.F_total:
+                self.F_color = '\033[2;32m'
+            else:
+                self.F_color = '\033[0;31m'
+
+            if self.dR == 0:
+                self.dR_color = '\033[0m'
+            else:
+                if self.dR < self.dR_total:
+                    self.dR_color = '\033[2;32m'
+                else:
+                    self.dR_color = '\033[0;31m'
+
+            if self.Smax == 0:
+                self.Smax_color = '\033[0m'
+            else:
+                if self.Smax < self.Smax_total:
+                    self.Smax_color = '\033[2;32m'
+                else:
+                    self.Smax_color = '\033[0;31m'
+
+            return ('{:3d} {}{:13.8e} {}{:13.8e} '
+                    '{}{:13.8e} {}{:13.8e} {}{:15.8e}').format(
+                self.N-1, self.dE_color, self.dE, self.F_color,
+                self.F, self.dR_color, self.dR, self.Smax_color,
+                self.Smax, self.E_color, self.E - self.E_old)
+
+    def run(self, side_view):
+        header = '| N|{:^14}|{:^14}|{:^14}|{:^14}|{:^15}|'.format(
+            'dE/ion', '|F|max', '|dR|max', 'Smax', 'dE total')
+
+        self.outputs.append(header)
+
+        if not side_view:
+            print(header)
+
+        for line in self.summary:
+            output = self.parse_line(line.strip())
+
+            if output:
+                self.outputs.append(output)
+
+                if not side_view:
+                    print(output)
+
+        footer = ' 99 {:12.8e} {:12.8e} {:12.8e} {:12.8e}'.format(
+            self.dE_total, self.F_total, self.dR_total, self.Smax_total)
+
+        self.outputs.append('\033[0m--')
+        self.outputs.append(footer)
+
+        if not side_view:
+            print('\033[0m--')
+            print(footer)
+
+
+def parser(args):
+    """Return parsed command line arguments."""
+    parser = argparse.ArgumentParser(
+        description=(
+            'Extracts the convergence indicators of a ONETEP BFGS geometry\n'
+            'optimisation calculation from the output file, and compares\n'
+            'them to the convergence tolerances. The results are coloured to\n'
+            'indicate which parameters are converged and which are not.'),
+        formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument(
+        'outfiles', metavar='outfile', type=str, nargs='*',
+        help='ONETEP output files to be extracted\n'
+             'If none is specified then all out files (*.out)\n'
+             'in the current directory will be read')
+
+    return parser.parse_args(args)
+
+
+def print_side_view(geomconvs):
+    """Print two geomconvs side-by-side."""
+    indices = [0, 0]
+    col_width = 84
+
+    while indices[0] < len(geomconvs[0]) or indices[1] < len(geomconvs[1]):
+        col_widths = [col_width, col_width]
+        outputs = ['--', '--']  # Dashes for empty lines to avoid confusions
+
+        for j in range(2):
+            if indices[j] < len(geomconvs[j]):
+                outputs[j] = geomconvs[j][indices[j]]
+                indices[j] += 1
+
+                # When the outputs are printed, fixed column size will fail due
+                # to the ansi color codes being recognised as characters. Hence
+                # lead to unexpected truncation of the columns.
+                # This is fixed by finding the difference between the lengths
+                # before and after stripping the color codes, then adding the
+                # difference to compensate the column width.
+                ansi_escape = re.compile(r'\033\[((?:\d|;)*)([a-zA-Z])')
+                stripped_output = ansi_escape.sub('', outputs[j])
+                col_widths[j] += len(outputs[j]) - len(stripped_output)
+
+        print(('{:<' + str(col_widths[0]) + '}' +
+               '{:' + str(col_widths[1]) + '}').format(
+                outputs[0], outputs[1]))
+
+
+def main(args=None, rcfile=None):
+    default_config = {
+        'outfile_ext': 'out'
+    }
+    config = helpers.parse_rcfile(rcfile, 'summarise', default_config)
+    args = parser(args)
+
+    try:
+        term_cols = int(subprocess.check_output(['stty', 'size']).split()[1])
+    except subprocess.CalledProcessError:
+        term_cols = 168  # Minimum size required for proper display
+
+    outfiles = helpers.outfiles(args.outfiles, config['outfile_ext'])
+
+    geomconvs = []  # Only used for side-by-side view
+    side_view = len(outfiles) == 2 and term_cols >= 168
+
+    for file in outfiles:
+        s = summarise.Summarise(file, 180)
+        s.run(False)
+        geomconv = Geomconv(s.summary)
+        geomconv.run(side_view)
+
+        if side_view:
+            geomconvs.append(geomconv.outputs)
+
+    if side_view:
+        print_side_view(geomconvs)
+
+if __name__ == '__main__':  # pragma: no cover
+    main()

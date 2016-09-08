@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+import sys
+import os
+import argparse
+import glob
+import time
+import smtplib
+from email.mime.text import MIMEText
+import helpers
+
+
+class Watch():
+    def __init__(self, dirs, config):
+        self.dirs = dirs
+        self.outfile_ext = config['outfile_ext']
+        self.interval = float(config['interval'])
+        self.email = config.get('email')
+        self.prev_states = self.process_dirs()
+
+    def process_dirs(self):
+        """Return the state of the directory."""
+        states = []
+
+        for d in self.dirs:
+            state = {
+                'have_errfile': False,
+                'have_outfile': False,
+                'completed': False
+            }
+            errfiles = glob.glob(os.path.join(d, '*.error_message'))
+            outfiles = glob.glob(os.path.join(d, '*.' + self.outfile_ext))
+
+            if len(errfiles) > 0:
+                state['have_errfile'] = True
+                state['completed'] = True
+
+            if len(outfiles) > 0:
+                state['have_outfile'] = True
+
+            for file in outfiles:
+                with open(file, 'r') as f:
+                    lines = f.readlines()[-5:]
+
+                for l in lines:
+                    if 'Job completed' in l:
+                        state['completed'] = True
+
+            states.append(state)
+
+        return states
+
+    def run(self):
+        log_file = 'teptools-' + time.strftime('%d%m%Y-%H%M') + '.log'
+        email_text = ''
+
+        while True:
+            completed = True
+            current_states = self.process_dirs()
+
+            for i in range(len(current_states)):
+                completed &= current_states[i]['completed']
+
+                if self.prev_states[i]['completed']:
+                    continue
+
+                if current_states[i]['completed']:
+                    log = time.strftime('[%d/%m/%y %H:%M:%S] ')
+
+                    if current_states[i]['have_errfile']:
+                        log += self.dirs[i] + ' failed\n'
+                    else:
+                        log += self.dirs[i] + ' successfully completed\n'
+
+                    email_text += log
+
+                    with open(log_file, 'a') as f:
+                        f.write(log)
+
+            if self.email and email_text:  # pragma: no cover
+                msg = MIMEText(email_text)
+                msg['Subject'] = 'ONETEP job status'
+                msg['From'] = 'jobs@onetep.org'
+                msg['To'] = self.email
+
+                s = smtplib.SMTP('smtp.mailgun.org', 587)
+
+                s.login('postmaster@mgtmpaddress',
+                        'mgtmppassword')
+                s.sendmail(msg['From'], msg['To'], msg.as_string())
+                s.quit()
+
+            self.prev_states = current_states
+
+            if completed:
+                break
+
+            time.sleep(self.interval)
+
+
+def parser(default_args, args):
+    """Return parsed command line arguments."""
+    parser = argparse.ArgumentParser(
+        description=(
+            'Watch the specified ONETEP jobs and write out a simple log or\n'
+            'notify the user via email with relevant information.\n'),
+        formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument(
+        'dirs', metavar='dir', type=str, nargs='*',
+        help='Directories containing an input file and the output file that\n'
+             'will be generated.')
+
+    parser.add_argument(
+        '-e', '--email', action='store_true',
+        help='Send an email to the user once a job is completed or errored.')
+
+    parser.add_argument(
+        '--no-email', action='store_false', dest='email',
+        help='Prevent sending an email.')
+
+    if args is None:  # pragma: no cover
+        if default_args == ['']:
+            default_args = []
+
+        args = default_args
+        args.extend(sys.argv[1:])
+
+    return parser.parse_args(args)
+
+
+def watchdirs(args, ext):
+    """Return a list of dirs to be watched from arguments.
+
+    Keyword arguments:
+    args -- a list of dir arguments passed by the user
+    ext -- extension of the input file to make sure the dir is in a
+           ONETEP simulation environment
+
+    Return:
+    watchdirs -- a list of 'useful' dirs based on the following rules:
+    - If a directory is not specified, return the current directory.
+    - If an argument includes '*' (glob pattern), expand the glob pattern
+    - Exclude directories that doesn't contain an input file *.{ext}
+    - Exclude file paths
+    """
+    # If a directory is not specified, return the current directory.
+    if len(args) == 0:
+        args = ['./']
+
+    # Provide globbing for arguments
+    watchdirs = []
+    for watchdir in args:
+        if '*' in watchdir:
+            for d in glob.glob(watchdir):
+                if (os.path.isdir(d) and
+                        len(glob.glob(os.path.join(
+                            d, '*.' + ext))) > 0):
+                    watchdirs.append(d)
+        else:
+            if (os.path.isdir(watchdir) and
+                    len(glob.glob(os.path.join(
+                        watchdir, '*.' + ext))) > 0):
+                watchdirs.append(watchdir)
+
+    return watchdirs
+
+
+def main(args=None, rcfile=None):
+    default_config = {
+        'options': [],
+        'inpfile_ext': 'dat',
+        'outfile_ext': 'out',
+        'email': '',
+        'interval': '3600'
+    }
+    config = helpers.parse_rcfile(rcfile, 'watch', default_config)
+    args = parser(config['options'], args)
+    args.dirs = watchdirs(args.dirs, config.inpfile_ext)
+    watch = Watch(args.dirs, config)
+    watch.run()
+
+if __name__ == '__main__':  # pragma: no cover
+    main()
