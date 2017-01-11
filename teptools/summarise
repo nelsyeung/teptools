@@ -235,7 +235,7 @@ def main(args=None, rcfile=None):
     except subprocess.CalledProcessError:
         term_cols = 180  # Minimum size required for proper display
 
-    outfiles = helpers.outfiles(args.outfiles, config['outfile_ext'])
+    outfiles = helpers.find_files(args.outfiles, config['outfile_ext'])
 
     # Always disable vimdiff mode if only one output file is specified
     if len(outfiles) == 1:

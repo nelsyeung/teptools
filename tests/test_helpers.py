@@ -60,8 +60,8 @@ def test_parse_rcfile(section, default, expected):
     ([os.path.join('tests', '*')],
         [os.path.join(fixtures_dir, 'one.out')])
 ])
-def test_outfiles(args, expected):
-    assert helpers.outfiles(args, 'out') == expected
+def test_find_files(args, expected):
+    assert helpers.find_files(args, 'out') == expected
 
 
 def test_create_file(remove_output):

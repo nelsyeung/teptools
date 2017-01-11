@@ -28,7 +28,7 @@ def main(args=None, rcfile=None):
     }
     config = helpers.parse_rcfile(rcfile, 'enerconv', default_config)
     args = parser(args)
-    outfiles = helpers.outfiles(args.outfiles, config['outfile_ext'])
+    outfiles = helpers.find_files(args.outfiles, config['outfile_ext'])
 
     for file in outfiles:
         fullpath = os.path.dirname(os.path.join(os.getcwd(), file))
