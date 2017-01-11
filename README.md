@@ -543,6 +543,7 @@ don't have a GitHub account and don't want one (why?!), you can just email the a
 ### Developers
 1. Fork this repository to your own GitHub.
 1. Clone your newly forked repository.
+1. Install necessary developers packages `pip install -r requirements.txt`.
 1. You may want to add your fork to [Travis CI](https://travis-ci.org/) for automated testing.
 1. Create a new branch following the [feature branch workflow](https://www.atlassian.com/git/tutorials/comparing-workflows/feature-branch-workflow):
     - New module - `feature/modulename`
