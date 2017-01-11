@@ -202,5 +202,6 @@ def main(args=None, rcfile=None):
     if side_view:
         print_side_view(geomconvs)
 
+
 if __name__ == '__main__':  # pragma: no cover
     main()

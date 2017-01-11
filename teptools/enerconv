@@ -49,5 +49,6 @@ def main(args=None, rcfile=None):
         if not job_completed:
             print(file + ' <-- not finished')
 
+
 if __name__ == '__main__':  # pragma: no cover
     main()

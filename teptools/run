@@ -114,5 +114,6 @@ def main(args=None, rcfile=None):
 
     subprocess.call(cmd, shell=True)
 
+
 if __name__ == '__main__':  # pragma: no cover
     main()

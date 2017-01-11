@@ -280,5 +280,6 @@ def main(args=None, rcfile=None):
         for newfile in newfiles:
             os.remove(newfile)
 
+
 if __name__ == '__main__':  # pragma: no cover
     main()

@@ -6,7 +6,7 @@ python:
   - "3.5"
   - "3.6"
 
-install: pip install coverage coveralls
+install: pip install flake8 coverage coveralls
 
 script: ./runtests.sh
 

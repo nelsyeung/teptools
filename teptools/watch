@@ -179,5 +179,6 @@ def main(args=None, rcfile=None):
     watch = Watch(args.dirs, config)
     watch.run()
 
+
 if __name__ == '__main__':  # pragma: no cover
     main()

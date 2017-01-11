@@ -238,5 +238,6 @@ def main(args=None, rcfile=None):
                        float(config['ngwf_radius']), config['potdir'],
                        cell_blocks, '')
 
+
 if __name__ == '__main__':  # pragma: no cover
     main()

@@ -52,5 +52,6 @@ def main(args=None, rcfile=None):
     os.chdir('..')
     shutil.rmtree('teptools')
 
+
 if __name__ == '__main__':
     main()
