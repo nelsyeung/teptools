@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import sys
+import glob
+import helpers
+
+
+class Check():
+    def __init__(self, dirpath, config):
+        self.dirpath = dirpath
+        self.config = config
+        self.errors = []
+
+    def check_continuation(self):
+        """Check for geom_continuation errors."""
+        if self.config['keywords']['task'] != 'geometryoptimization':
+            return
+
+        # Check if there are any continuation file in the same directory
+        continue_file = glob.glob(
+            os.path.join(self.dirpath, '*.continuation'))
+
+        if 'geom_continuation' not in self.config['keywords']:
+            if continue_file:
+                self.errors.append('geom_continuation keyword not found ' +
+                                   'but a continuation file exists.')
+            return
+
+        if self.config['keywords']['geom_continuation'] == 't':
+            if not continue_file:
+                self.errors.append('geom_continuation is true but ' +
+                                   'continuation file not found.')
+        else:
+            if continue_file:
+                self.errors.append('geom_continuation is false but ' +
+                                   'a continuation file exists.')
+
+    def run(self):
+        """Find all errors."""
+        self.check_continuation()
+
+        for error in self.errors:
+            print(error)
+
+
+def parser(default_args, args):
+    """Return parsed command line arguments."""
+    parser = argparse.ArgumentParser(
+        description=(
+            'Check ONETEP input files for errors.'),
+        formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument(
+        'inpfiles', metavar='inpfile', type=str, nargs='*',
+        help='ONETEP input files to be checked\n'
+             'If none is specified then all input files (*.dat)\n'
+             'in the current directory will be read')
+
+    if args is None:  # pragma: no cover
+        if default_args == ['']:
+            default_args = []
+
+        args = default_args
+        args.extend(sys.argv[1:])
+
+    return parser.parse_args(args)
+
+
+def main(args=None, rcfile=None):
+    default_config = {
+        'options': [],
+        'inpfile_ext': 'dat',
+        'outfile_ext': 'out'
+    }
+    config = helpers.parse_rcfile(rcfile, 'check', default_config)
+    args = parser(config['options'], args)
+
+    inpfiles = helpers.find_files(args.inpfiles, config['inpfile_ext'])
+
+    for file in inpfiles:
+        check = Check(os.path.dirname(file), helpers.parse_inpfile(file))
+        check.run()
+
+
+if __name__ == '__main__':  # pragma: no cover
+    main()

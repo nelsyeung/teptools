@@ -27,3 +27,5 @@ options =
 [geomconv]
 
 [enerconv]
+
+[check]
