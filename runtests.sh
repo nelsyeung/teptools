@@ -6,5 +6,5 @@ if [[ -z $1 ]]; then
 	coverage report
 else
 	flake8 teptools/$1.py tests/test_$1.py &&
-	pytest tests/test_$1.py
+	pytest -vv tests/test_$1.py
 fi
