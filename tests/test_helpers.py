@@ -52,6 +52,43 @@ def test_parse_rcfile(section, default, expected):
     assert config == expected
 
 
+def test_parse_inpfile():
+    """Test parse_rcfile function."""
+    inpfile = os.path.join(fixtures_dir, 'check.dat')
+    config = helpers.parse_inpfile(inpfile)
+    expected = {
+        'keywords': {
+            'task': 'geometryoptimization',
+            'do_properties': 't',
+            'geom_continuation': 't'
+        },
+        'blocks': {
+            'lattice_cart': [
+                'ang',
+                '87.6510  0.00000  0.0000',
+                '0.00000 30.23030  0.0000',
+                '0.00000  0.00000 14.3240'
+            ],
+            'species': [
+                'Mo  Mo   42 -1 13.0',
+                'S   S    16 -1 13.0'
+            ],
+            'species_pot': [
+                'Mo  Mo.PBE-paw.abinit',
+                'S   S.PBE-paw.abinit',
+            ],
+            'positions_abs': [
+                'ang',
+                'S  0.000 0.000 0.000',
+                'S  0.515 0.515 0.314',
+                'Mo 1.340 1.340 1.340'
+            ]
+        }
+    }
+
+    assert config == expected
+
+
 @pytest.mark.parametrize('args, expected', [
     ([fixtures_dir],
         [os.path.join(fixtures_dir, 'one.out')]),

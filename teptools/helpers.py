@@ -1,7 +1,8 @@
 """Teptools helpers."""
-import os
-import glob
 import configparser
+import glob
+import os
+import re
 
 
 def parse_rcfile(rcfile, section, default):
@@ -27,6 +28,68 @@ def parse_rcfile(rcfile, section, default):
         if type(default[setting]) is list:
             config[setting] = [l.strip()
                                for l in config[setting].split(',')]
+
+    return config
+
+
+def parse_inpfile(inpfile):
+    """Return the keywords and blocks from a ONETEP input file."""
+    block = False
+    config = {
+        'keywords': {},
+        'blocks': {}
+    }
+
+    if not os.path.isfile(inpfile):
+        return {}
+
+    with open(inpfile, 'r') as f:
+        for line in f:
+            raw_line = line.strip()
+            line = raw_line.lower()
+            linesplit = line.split()
+
+            # Ignore comments and empty lines
+            if (not line or
+                    line.startswith('#') or
+                    line.startswith(';') or
+                    line.startswith('!')):
+                continue
+
+            # Start of a block
+            if not block and line.startswith('%block '):
+                block = line.split()[1].lower()
+                config['blocks'][block] = []
+                continue
+
+            # End of a block regardless of the name
+            if block and line.startswith('%endblock'):
+                block = False
+                continue
+
+            # Parse config outside of a block
+            if not block:
+                key = False
+
+                if len(linesplit) == 2:
+                    key = linesplit[0]
+                    value = linesplit[1]
+                elif len(linesplit) > 2:
+                    key = linesplit[0]
+                    value = linesplit[1]
+
+                    # Ignore key value separator
+                    regex = re.compile('^[0-9a-zA-Z.]*$')
+
+                    if not regex.match(value):
+                        value = linesplit[2]
+
+                if key:
+                    config['keywords'][key] = value
+
+            # If inside a block store every line
+            if block:
+                config['blocks'][block].append(raw_line)
 
     return config
 
