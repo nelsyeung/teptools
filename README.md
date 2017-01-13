@@ -20,6 +20,7 @@ Quick and easy to use tools for [ONETEP](http://www.onetep.org), in a single pac
     1. [Summarise](#summarise)
     1. [Geomconv](#geomconv)
     1. [Enerconv](#enerconv)
+    1. [Check](#check)
     1. [Error](#error)
     1. [Update](#update)
 1. [Configurations](#configurations)
@@ -47,6 +48,7 @@ Quick and easy to use tools for [ONETEP](http://www.onetep.org), in a single pac
   side-by-side view for two output files.
 - [Enerconv](#enerconv) - Extracts the final converged energy from an output file. This is especially useful
   for getting all the energies from convergence tests.
+- [Check](#check) - Check input files for potential errors.
 - [Error](#error) - Nothing special, just read error files without typing in a path.
 - [Update](#update) - Update TEP Tools.
 
@@ -374,6 +376,27 @@ enerconv         # Print converged energy for all the .out files within the curr
 enerconv foodir  # Print enerconv for all the .out files within the foodir directory.
 enerconv foo.out # Print enerconv for foo.out.
 enerconv *       # Print the converged energy from all the subdirectories.
+```
+
+**Available options**
+```sh
+-h, --help      show the help message and exit
+```
+
+**[⬆ back to top](#table-of-contents)**
+
+## check
+> Check input file for potential errors.
+
+**Usage**
+```sh
+check [options] [outfile [outfile ...]]
+
+# Examples:
+enerconv         # Check all the input files within the current directory.
+enerconv foodir  # Check all the .dat files within the foodir directory.
+enerconv foo.dat # Check the foo.dat file within the current directory.
+enerconv *       # Check the input files from all the subdirectories.
 ```
 
 **Available options**
