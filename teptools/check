@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import os
-import sys
 import glob
 import helpers
 
@@ -44,7 +43,7 @@ class Check():
             print(error)
 
 
-def parser(default_args, args):
+def parser(args):
     """Return parsed command line arguments."""
     parser = argparse.ArgumentParser(
         description=(
@@ -57,24 +56,16 @@ def parser(default_args, args):
              'If none is specified then all input files (*.dat)\n'
              'in the current directory will be read')
 
-    if args is None:  # pragma: no cover
-        if default_args == ['']:
-            default_args = []
-
-        args = default_args
-        args.extend(sys.argv[1:])
-
     return parser.parse_args(args)
 
 
 def main(args=None, rcfile=None):
     default_config = {
-        'options': [],
         'inpfile_ext': 'dat',
         'outfile_ext': 'out'
     }
     config = helpers.parse_rcfile(rcfile, 'check', default_config)
-    args = parser(config['options'], args)
+    args = parser(args)
 
     inpfiles = helpers.find_files(args.inpfiles, config['inpfile_ext'])
 
