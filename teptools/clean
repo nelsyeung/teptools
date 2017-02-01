@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+rm *.out *.dkn *.pbs.* *.tightbox_ngwfs *.continuation
