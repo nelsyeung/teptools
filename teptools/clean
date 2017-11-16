@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-rm *.out *.dkn *.pbs.* *.tightbox_ngwfs *.continuation
+rm *.out *.dkn *.pbs.* *.tightbox_ngwfs* *.continuation *.ham* 2> /dev/null
