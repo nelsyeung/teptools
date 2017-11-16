@@ -20,11 +20,7 @@ def setup(request):
     def fin():
         os.remove(inpfile)
         os.remove(onetep)
-
-        try:
-            os.remove(outfile)
-        except:
-            pass
+        os.remove(outfile)
 
     request.addfinalizer(fin)
 

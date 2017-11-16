@@ -150,7 +150,7 @@ def test_create(monkeypatch, setup):
     def get_all_out(test_dir, inpfile):
         res = []
 
-        for d in os.listdir(test_dir):
+        for d in sorted(os.listdir(test_dir)):
             dir = os.path.join(test_dir, d)
 
             if not os.path.isdir(dir):
